@@ -713,8 +713,35 @@ def main():
     elif st.session_state.active_tab == "课表窗口":
         st.header("📚 课表窗口")
         st.write("引入你的课表，来告诉ta你今天上什么课吧！")
-        course2.timetable_management_tab_modified(get_binded_users())
+    
+        if not st.session_state.current_user:
+               st.warning("请先登录以使用课表功能")
+               return
+    
+        try:
+            # 重新导入模块以确保最新
+            import importlib
+            importlib.reload(course2)
         
+        # 获取绑定用户
+            binded_users = get_binded_users()
+        
+        # 调用课表功能
+            course2.timetable_management_tab_modified(binded_users)
+        
+        except AttributeError as e:
+            st.error(f"函数调用错误: {str(e)}")
+            st.info("""
+            可能的原因：
+            1. course2.py 文件中缺少 timetable_management_tab_modified 函数
+            2. 函数参数不匹配
+            3. 模块导入问题
+            """)
+        except Exception as e:
+            st.error(f"未知错误: {str(e)}")
+            st.info("请检查控制台获取完整错误信息")
+        
+    
     elif st.session_state.active_tab == "日程分享":
         st.header("📅 日程分享")
         st.write("与学习伙伴共享你的日程安排")
