@@ -1,0 +1,18 @@
+{
+  "ADMIN2024": {
+    "role": "admin",
+    "created_by": "system",
+    "created_at": "2025-11-04T22:15:04.322177",
+    "used": false,
+    "used_by": null,
+    "used_at": null
+  },
+  "TEACHER123": {
+    "role": "admin",
+    "created_by": "system",
+    "created_at": "2025-11-04T22:15:04.322201",
+    "used": false,
+    "used_by": null,
+    "used_at": null
+  }
+}
