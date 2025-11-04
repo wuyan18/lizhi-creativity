@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import json
 import os
-import course
+import course2
 
 
 # 设置页面配置
@@ -134,7 +134,7 @@ if st.session_state.active_tab == "网站介绍":
 
 elif st.session_state.active_tab == "课表窗口":
     st.write("欢迎来到课表窗口，引入你的课表，来告诉ta你今天上什么课吧！")
-    course.timetable_management_tab()
+    course2.timetable_management_tab()
     
 elif st.session_state.active_tab == "日程分享":
     st.write("这里是日程分享内容。")
