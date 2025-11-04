@@ -32,10 +32,6 @@ def init_timetable_session_state():
         st.session_state.timetables = {}
     if 'uploaded_file_hashes' not in st.session_state:
         st.session_state.uploaded_file_hashes = set()
-    if 'current_user' not in st.session_state:
-        st.session_state.current_user = None
-    if 'users' not in st.session_state:
-        st.session_state.users = load_users()
     if 'delete_success' not in st.session_state:
         st.session_state.delete_success = False
     if 'timetables_to_delete' not in st.session_state:
@@ -44,8 +40,6 @@ def init_timetable_session_state():
         st.session_state.force_refresh = False
     if 'last_upload_time' not in st.session_state:
         st.session_state.last_upload_time = None
-    if 'invite_codes' not in st.session_state:
-        st.session_state.invite_codes = load_invite_codes()
     
     # 从本地存储加载数据
     load_timetables_from_storage()
@@ -119,140 +113,6 @@ def save_users(users_data=None):
     except Exception as e:
         st.error(f"保存用户数据失败: {str(e)}")
         return False
-
-def enhanced_user_system():
-    """增强的用户系统"""
-    st.sidebar.markdown("---")
-    st.sidebar.subheader("🔐 用户登录")
-    
-    if st.session_state.current_user:
-        user_info = st.session_state.users.get(st.session_state.current_user, {})
-        user_role = user_info.get("role", "user")
-        role_display = "👑 管理员" if user_role == "admin" else "👤 普通用户"
-        st.sidebar.success(f"已登录: {st.session_state.current_user} ({role_display})")
-        
-        if st.sidebar.button("🚪 退出登录"):
-            st.session_state.current_user = None
-            st.rerun()
-        return True
-    
-    with st.sidebar.expander("点击登录/注册", expanded=False):
-        tab1, tab2 = st.tabs(["登录", "注册"])
-        
-        with tab1:
-            username = st.text_input("用户名", key="login_username")
-            password = st.text_input("密码", type="password", key="login_password")
-            
-            if st.button("登录", key="login_btn"):
-                if authenticate_user(username, password):
-                    st.session_state.current_user = username
-                    st.success("登录成功!")
-                    st.rerun()
-                else:
-                    st.error("用户名或密码错误")
-        
-        with tab2:
-            new_username = st.text_input("新用户名", key="reg_username")
-            new_password = st.text_input("新密码", type="password", key="reg_password")
-            invite_code = st.text_input("管理员邀请码（可选）", key="invite_code")
-            
-            if st.button("注册", key="register_btn"):
-                success, message = register_enhanced_user(new_username, new_password, invite_code)
-                if success:
-                    st.session_state.current_user = new_username
-                    st.success(message)
-                    st.rerun()
-                else:
-                    st.error(message)
-    
-    return False
-
-def authenticate_user(username, password):
-    """用户认证"""
-    if username in st.session_state.users:
-        stored_password = st.session_state.users[username].get("password")
-        return stored_password == password
-    return False
-
-def register_enhanced_user(username, password, invite_code=None):
-    """增强的用户注册"""
-    if not username or not password:
-        return False, "请输入用户名和密码"
-    
-    if username in st.session_state.users:
-        return False, "用户名已存在"
-    
-    # 检查是否是第一个用户
-    is_first_user = len(st.session_state.users) == 0
-    user_role = "user"
-    
-    # 首个用户自动成为管理员
-    if is_first_user:
-        user_role = "admin"
-        message = "🎉 恭喜！您是该系统的首个用户，已自动成为管理员。"
-    # 有有效邀请码的用户成为管理员
-    elif invite_code and check_invite_code(invite_code):
-        user_role = "admin"
-        message = "🎉 欢迎管理员！邀请码验证成功。"
-        # 标记邀请码为已使用
-        mark_invite_code_used(invite_code, username)
-    else:
-        message = "注册成功！"
-    
-    st.session_state.users[username] = {
-        "password": password,
-        "role": user_role,
-        "created_at": datetime.datetime.now().isoformat(),
-        "invite_used": invite_code if invite_code else None
-    }
-    
-    save_users()
-    return True, message
-
-def check_invite_code(code):
-    """检查邀请码有效性"""
-    # 检查邀请码是否存在且未被使用
-    if code in st.session_state.invite_codes:
-        invite_info = st.session_state.invite_codes[code]
-        return not invite_info.get("used", False)
-    return False
-
-def mark_invite_code_used(code, username):
-    """标记邀请码为已使用"""
-    if code in st.session_state.invite_codes:
-        st.session_state.invite_codes[code]["used"] = True
-        st.session_state.invite_codes[code]["used_by"] = username
-        st.session_state.invite_codes[code]["used_at"] = datetime.datetime.now().isoformat()
-        save_invite_codes()
-        return True
-    return False
-
-def generate_invite_code(role="admin", prefix="", length=8):
-    """生成新的邀请码"""
-    # 生成随机字符串
-    characters = string.ascii_uppercase + string.digits
-    random_part = ''.join(random.choice(characters) for _ in range(length))
-    
-    # 组合前缀和随机部分
-    code = f"{prefix}{random_part}"
-    
-    # 确保邀请码唯一
-    while code in st.session_state.invite_codes:
-        random_part = ''.join(random.choice(characters) for _ in range(length))
-        code = f"{prefix}{random_part}"
-    
-    # 保存邀请码
-    st.session_state.invite_codes[code] = {
-        "role": role,
-        "created_by": st.session_state.current_user,
-        "created_at": datetime.datetime.now().isoformat(),
-        "used": False,
-        "used_by": None,
-        "used_at": None
-    }
-    
-    save_invite_codes()
-    return code
 
 def save_timetables_to_storage():
     """将课表数据保存到本地存储"""
@@ -418,8 +278,8 @@ def create_download_button(df, file_name, context=""):
         key=button_key
     )
 
-def display_timetable_main():
-    """在主界面显示课程表"""
+def display_timetable_main_modified(binded_users):
+    """修改后的主界面显示课程表 - 只显示绑定用户的课表"""
     st.header("📅 课程表总览")
     
     # 检查删除成功状态
@@ -435,24 +295,35 @@ def display_timetable_main():
     storage_info = get_storage_info()
     st.sidebar.info(f"💾 本地存储: {storage_info}")
     
+    # 过滤课表：只显示当前用户和绑定用户的课表
+    visible_timetables = {}
+    for name, data in st.session_state.timetables.items():
+        uploader = data.get('uploaded_by')
+        if uploader == st.session_state.current_user or uploader in binded_users:
+            visible_timetables[name] = data
+    
+    if not visible_timetables:
+        st.info("📚 暂无可见的课程表数据，请先绑定账号或上传自己的课表")
+        return
+    
     # 显示所有课表的概览
-    timetable_names = list(st.session_state.timetables.keys())
+    timetable_names = list(visible_timetables.keys())
     
     # 添加筛选选项
     col1, col2 = st.columns([3, 1])
     with col2:
         filter_option = st.selectbox(
             "筛选显示:",
-            ["所有课表", "我上传的课表", "其他用户课表"]
+            ["所有课表", "我上传的课表", "绑定用户课表"]
         )
     
     # 根据筛选条件过滤课表
     if filter_option == "我上传的课表" and st.session_state.current_user:
         timetable_names = [name for name in timetable_names 
-                          if st.session_state.timetables[name].get('uploaded_by') == st.session_state.current_user]
-    elif filter_option == "其他用户课表" and st.session_state.current_user:
+                          if visible_timetables[name].get('uploaded_by') == st.session_state.current_user]
+    elif filter_option == "绑定用户课表" and st.session_state.current_user:
         timetable_names = [name for name in timetable_names 
-                          if st.session_state.timetables[name].get('uploaded_by') != st.session_state.current_user]
+                          if visible_timetables[name].get('uploaded_by') != st.session_state.current_user]
     
     if not timetable_names:
         st.info("没有找到符合条件的课表")
@@ -463,14 +334,18 @@ def display_timetable_main():
     
     for i, (tab, timetable_name) in enumerate(zip(tabs, timetable_names)):
         with tab:
-            timetable_data = st.session_state.timetables[timetable_name]
+            timetable_data = visible_timetables[timetable_name]
             df = timetable_data['dataframe']
             
             # 课表信息
             col1, col2 = st.columns([3, 1])
             with col1:
                 st.subheader(timetable_name)
-                uploader_info = f" | 上传者: {timetable_data.get('uploaded_by', '未知')}" if timetable_data.get('uploaded_by') else ""
+                uploader = timetable_data.get('uploaded_by', '未知')
+                if uploader == st.session_state.current_user:
+                    uploader_info = " | 上传者: 👤 我"
+                else:
+                    uploader_info = f" | 上传者: 👥 {uploader}"
                 st.caption(f"文件: {timetable_data['file_name']} | 上传时间: {timetable_data['upload_time']}{uploader_info}")
             
             with col2:
@@ -533,7 +408,7 @@ def import_timetable_section():
         - 可以同时导入多个课程表
         - 导入后可以在主页面查看课程表
         - **数据持久化**: 课表数据会自动保存，下次打开页面时自动加载
-        - **多用户支持**: 所有用户上传的课表都会共享显示
+        - **账号绑定**: 只有绑定的用户才能查看彼此的课表
         """)
     
     # 文件上传
@@ -631,7 +506,7 @@ def download_timetable_section():
             f"download_page_{timetable_name}_{i}"
         )
     
-    # 批量下载 - 修复版本
+    # 批量下载
     st.markdown("#### 批量下载")
     if len(timetable_names) > 1:
         # 直接创建打包文件，不使用中间按钮
@@ -657,133 +532,6 @@ def download_timetable_section():
     else:
         st.info("导入多个课表后可进行打包下载")
 
-def enhanced_user_management_section():
-    """增强的用户管理部分"""
-    # 检查当前用户是否为管理员
-    if not st.session_state.current_user:
-        return
-        
-    current_user_info = st.session_state.users.get(st.session_state.current_user, {})
-    if current_user_info.get("role") != "admin":
-        return
-    
-    st.header("👑 管理员面板")
-    
-    # 用户统计
-    total_users = len(st.session_state.users)
-    admin_users = [u for u, info in st.session_state.users.items() if info.get('role') == 'admin']
-    admin_count = len(admin_users)
-    
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("总用户数", total_users)
-    with col2:
-        st.metric("管理员数", admin_count)
-    with col3:
-        st.metric("普通用户数", total_users - admin_count)
-    
-    # 用户管理
-    st.subheader("用户管理")
-    for username, user_info in st.session_state.users.items():
-        with st.expander(f"{username} - {user_info.get('role', 'user')}", expanded=False):
-            col1, col2 = st.columns([3, 1])
-            
-            with col1:
-                st.write(f"注册时间: {user_info.get('created_at', '未知')}")
-                if user_info.get('invite_used'):
-                    st.write(f"使用的邀请码: {user_info.get('invite_used')}")
-                
-                # 角色管理
-                current_role = user_info.get('role', 'user')
-                if current_role == 'admin':
-                    st.success("👑 管理员")
-                    if username != st.session_state.current_user:  # 不能降级自己
-                        if st.button(f"降级为普通用户", key=f"demote_{username}"):
-                            user_info['role'] = 'user'
-                            save_users()
-                            st.success(f"已降级用户: {username}")
-                            st.rerun()
-                else:
-                    st.info("👤 普通用户")
-                    if st.button(f"提升为管理员", key=f"promote_{username}"):
-                        user_info['role'] = 'admin'
-                        save_users()
-                        st.success(f"已提升用户: {username} 为管理员")
-                        st.rerun()
-            
-            with col2:
-                # 删除用户（不能删除自己）
-                if username != st.session_state.current_user:
-                    if st.button("🗑️ 删除", key=f"delete_{username}"):
-                        del st.session_state.users[username]
-                        save_users()
-                        st.success(f"已删除用户: {username}")
-                        st.rerun()
-                else:
-                    st.write("当前用户")
-    
-    # 邀请码管理
-    st.subheader("邀请码管理")
-    
-    # 显示当前有效邀请码
-    st.markdown("#### 当前有效邀请码")
-    active_codes = {code: info for code, info in st.session_state.invite_codes.items() if not info.get("used", False)}
-    
-    if active_codes:
-        for code, info in active_codes.items():
-            col1, col2, col3 = st.columns([3, 1, 1])
-            with col1:
-                role_display = "👑 管理员" if info.get("role") == "admin" else "👤 普通用户"
-                st.write(f"**{code}** - {role_display}")
-                st.caption(f"创建者: {info.get('created_by', '未知')} | 创建时间: {info.get('created_at', '未知')}")
-            with col2:
-                if st.button("复制", key=f"copy_{code}"):
-                    st.session_state.clipboard = code
-                    st.success(f"已复制邀请码: {code}")
-            with col3:
-                if st.button("删除", key=f"delete_code_{code}"):
-                    del st.session_state.invite_codes[code]
-                    save_invite_codes()
-                    st.success(f"已删除邀请码: {code}")
-                    st.rerun()
-    else:
-        st.info("暂无有效邀请码")
-    
-    # 生成新邀请码
-    st.markdown("#### 生成新邀请码")
-    col1, col2, col3 = st.columns([2, 2, 1])
-    
-    with col1:
-        new_code_role = st.selectbox("权限级别", ["admin", "user"], key="new_code_role")
-    with col2:
-        code_prefix = st.text_input("前缀(可选)", key="code_prefix", max_chars=10)
-    with col3:
-        code_length = st.number_input("长度", min_value=6, max_value=20, value=8, key="code_length")
-    
-    if st.button("🎫 生成新邀请码", use_container_width=True):
-        new_code = generate_invite_code(
-            role=new_code_role,
-            prefix=code_prefix,
-            length=code_length
-        )
-        st.success(f"🎉 新邀请码已生成: **{new_code}**")
-        st.info(f"权限级别: {'👑 管理员' if new_code_role == 'admin' else '👤 普通用户'}")
-        st.rerun()
-    
-    # 显示已使用的邀请码
-    st.markdown("#### 已使用的邀请码")
-    used_codes = {code: info for code, info in st.session_state.invite_codes.items() if info.get("used", False)}
-    
-    if used_codes:
-        for code, info in used_codes.items():
-            with st.expander(f"{code} - 已使用", expanded=False):
-                st.write(f"使用者: {info.get('used_by', '未知')}")
-                st.write(f"使用时间: {info.get('used_at', '未知')}")
-                st.write(f"权限级别: {'👑 管理员' if info.get('role') == 'admin' else '👤 普通用户'}")
-                st.write(f"创建者: {info.get('created_by', '未知')}")
-    else:
-        st.info("暂无已使用的邀请码")
-
 def process_pending_deletions():
     """处理待删除的课表"""
     if st.session_state.timetables_to_delete:
@@ -796,13 +544,10 @@ def process_pending_deletions():
         st.session_state.timetables_to_delete = []
         st.rerun()
 
-def timetable_management_tab():
-    """课程表管理标签页 - 供主程序调用"""
+def timetable_management_tab_modified(binded_users):
+    """修改后的课程表管理标签页 - 只显示绑定用户的课表"""
     # 初始化
     init_timetable_session_state()
-    
-    # 用户登录系统
-    enhanced_user_system()
     
     # 处理待删除的课表
     process_pending_deletions()
@@ -812,18 +557,18 @@ def timetable_management_tab():
         st.session_state.force_refresh = False
         st.rerun()
     
+    # 检查登录状态
+    if not st.session_state.current_user:
+        st.warning("请先登录以使用课表功能")
+        return
+    
     # 创建子标签页
     tab_names = ["主页", "导入课程表", "下载课程表"]
-    
-    # 检查当前用户是否为管理员
-    current_user_info = st.session_state.users.get(st.session_state.current_user, {})
-    if current_user_info.get("role") == "admin":
-        tab_names.append("管理员面板")
     
     tabs = st.tabs(tab_names)
     
     with tabs[0]:
-        display_timetable_main()
+        display_timetable_main_modified(binded_users)
     
     with tabs[1]:
         import_timetable_section()
@@ -831,11 +576,7 @@ def timetable_management_tab():
     with tabs[2]:
         download_timetable_section()
     
-    if len(tabs) > 3:
-        with tabs[3]:
-            enhanced_user_management_section()
-    
-    # 侧边栏信息 - 修复删除功能
+    # 侧边栏信息
     with st.sidebar:
         st.header("📚 课程表管理")
         
@@ -843,48 +584,52 @@ def timetable_management_tab():
         storage_info = get_storage_info()
         st.info(f"💾 数据存储: {storage_info}")
         
-        # 显示同步状态
+        # 显示绑定状态
         if st.session_state.current_user:
-            user_info = st.session_state.users.get(st.session_state.current_user, {})
-            user_role = user_info.get("role", "user")
-            if user_role == "admin":
-                st.success("👑 管理员权限")
+            if binded_users:
+                st.success(f"🔗 已绑定 {len(binded_users)} 个用户")
+            else:
+                st.info("🔗 暂无绑定用户")
         
-        if st.session_state.timetables:
-            st.subheader(f"已导入 ({len(st.session_state.timetables)})")
+        visible_timetables = {}
+        for name, data in st.session_state.timetables.items():
+            uploader = data.get('uploaded_by')
+            if uploader == st.session_state.current_user or uploader in binded_users:
+                visible_timetables[name] = data
+        
+        if visible_timetables:
+            st.subheader(f"可见课表 ({len(visible_timetables)})")
             
             # 使用列表来避免迭代时修改字典的问题
-            timetable_items = list(st.session_state.timetables.items())
+            timetable_items = list(visible_timetables.items())
             
             # 添加单个删除功能
             for name, data in timetable_items:
                 with st.expander(f"📋 {name}"):
                     st.caption(f"文件: {data['file_name']}")
                     st.caption(f"上传: {data['upload_time']}")
-                    uploader_info = f" | 上传者: {data.get('uploaded_by', '未知')}" if data.get('uploaded_by') else ""
+                    uploader = data.get('uploaded_by', '未知')
+                    if uploader == st.session_state.current_user:
+                        uploader_info = " | 上传者: 👤 我"
+                    else:
+                        uploader_info = f" | 上传者: 👥 {uploader}"
                     st.caption(f"数据: {len(data['dataframe'])}行 × {len(data['dataframe'].columns)}列{uploader_info}")
                     
-                    # 检查删除权限 - 修复权限检查
-                    current_user = st.session_state.current_user
-                    can_delete = False
-                    
-                    if current_user:
-                        # 管理员可以删除任何课表
-                        user_info = st.session_state.users.get(current_user, {})
-                        if user_info.get("role") == "admin":
-                            can_delete = True
-                        # 用户只能删除自己上传的课表
-                        elif data.get('uploaded_by') == current_user:
-                            can_delete = True
+                    # 检查删除权限
+                    can_delete = (
+                        st.session_state.current_user and (
+                            st.session_state.current_user == 'admin' or 
+                            st.session_state.current_user == data.get('uploaded_by')
+                        )
+                    )
                     
                     if can_delete:
-                        # 使用更简单的删除逻辑
                         delete_key = f"delete_{name}"
                         if st.button("🗑️ 删除此课表", key=delete_key, use_container_width=True):
+                            # 直接删除课表
                             success, message = delete_timetable(name)
                             if success:
                                 st.success(message)
-                                # 使用experimental_rerun确保刷新
                                 st.rerun()
                             else:
                                 st.error(message)
@@ -896,6 +641,7 @@ def timetable_management_tab():
                 st.markdown("---")
                 clear_button_key = f"clear_all_timetables"
                 if st.button("🗑️ 清空所有课表", use_container_width=True, key=clear_button_key, type="secondary"):
+                    # 清空所有课表
                     success, message = clear_all_timetables()
                     if success:
                         st.success(message)
@@ -903,20 +649,4 @@ def timetable_management_tab():
                     else:
                         st.error(message)
         else:
-            st.info("暂无课表数据")
-
-
-def main():
-    """主函数"""
-    st.set_page_config(
-        page_title="课程表管理系统",
-        page_icon="📚",
-        layout="wide",
-        initial_sidebar_state="expanded"
-    )
-    
-    # 初始化并运行课程表管理
-    timetable_management_tab()
-
-if __name__ == "__main__":
-    main()
+            st.info("暂无可见课表数据")
