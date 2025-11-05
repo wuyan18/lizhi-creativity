@@ -270,7 +270,21 @@ def get_modern_css():
         background: linear-gradient(90deg, transparent, #6366f1, transparent);
         margin: 2rem 0;
         border: none;
-    }
+    }/* 移除或注释掉可能冲突的模态框样式 */
+/*
+.modal-overlay, .modal-content {
+    display: none !important;
+}
+*/
+
+/* 确保表单样式正常 */
+.stForm {
+    border: 1px solid #e2e8f0;
+    border-radius: 15px;
+    padding: 2rem;
+    background: white;
+    margin: 1rem 0;
+}
     
     /* 动画效果 */
     @keyframes fadeInUp {
