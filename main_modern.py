@@ -18,19 +18,15 @@ st.markdown(get_modern_css(), unsafe_allow_html=True)
 
 # 初始化session state
 if 'active_tab' not in st.session_state:
-    st.session_state.active_tab = "首页"
+    st.session_state.active_tab = "网站介绍"
 if 'show_login_modal' not in st.session_state:
     st.session_state.show_login_modal = False
-if 'login_active_tab' not in st.session_state:
-    st.session_state.login_active_tab = "登录"
 
 # 初始化用户系统
 if 'users' not in st.session_state:
     st.session_state.users = course2.load_users()
 if 'current_user' not in st.session_state:
     st.session_state.current_user = None
-if 'invite_codes' not in st.session_state:
-    st.session_state.invite_codes = course2.load_invite_codes()
 if 'user_relationships' not in st.session_state:
     st.session_state.user_relationships = load_user_relationships()
 
@@ -45,51 +41,53 @@ def modern_login_system():
     
     with col3:
         if st.session_state.current_user:
-            user_info = st.session_state.users.get(st.session_state.current_user, {})
-            user_role = user_info.get("role", "user")
-            
             st.markdown(f'''
             <div class="user-status-card">
                 <div style="font-size: 1.2rem; font-weight: 600;">👋 {st.session_state.current_user}</div>
                 <div style="font-size: 0.9rem; opacity: 0.9;">
-                    {"👑 管理员" if user_role == "admin" else "👤 学习者"}
+                    👤 学习者
                 </div>
             </div>
             ''', unsafe_allow_html=True)
             
             if st.button("🚪 退出登录", key="logout_btn", use_container_width=True):
                 st.session_state.current_user = None
-                st.session_state.show_login_modal = False
                 st.rerun()
         else:
             if st.button("🔐 登录 / 注册", key="login_btn", use_container_width=True, type="primary"):
                 st.session_state.show_login_modal = True
                 st.rerun()
 
-def simple_login_section():
-    """简单的登录/注册区域 - 不使用模态框"""
-    st.markdown("---")
-    st.markdown('<div style="text-align: center; margin-bottom: 2rem;"><h2>🔐 欢迎来到荔枝营地</h2></div>', unsafe_allow_html=True)
-    
-    # 使用原生Streamlit标签页
-    login_tab, register_tab = st.tabs(["📝 登录账户", "✨ 注册账户"])
-    
-    with login_tab:
-        st.subheader("登录您的账户")
-        with st.form("login_form"):
-            username = st.text_input("👤 用户名", placeholder="请输入用户名")
-            password = st.text_input("🔒 密码", type="password", placeholder="请输入密码")
+def modern_login_modal():
+    """简化版登录界面 - 不使用模态框"""
+    if st.session_state.show_login_modal:
+        # 创建一个居中的登录框
+        st.markdown("""
+        <style>
+        .login-container {
+            max-width: 500px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+        </style>
+        """, unsafe_allow_html=True)
+        
+        st.markdown('<div class="login-container">', unsafe_allow_html=True)
+        
+        st.markdown('<h2 style="text-align: center; margin-bottom: 1.5rem;">🔐 欢迎回来</h2>', unsafe_allow_html=True)
+        
+        tab1, tab2 = st.tabs(["登录账户", "注册账户"])
+        
+        with tab1:
+            username = st.text_input("👤 用户名", key="modal_login_username", placeholder="请输入用户名")
+            password = st.text_input("🔒 密码", type="password", key="modal_login_password", placeholder="请输入密码")
             
-            col1, col2 = st.columns([2, 1])
+            col1, col2 = st.columns(2)
             with col1:
-                login_submitted = st.form_submit_button("🚀 立即登录", use_container_width=True)
-            with col2:
-                if st.form_submit_button("❌ 取消", use_container_width=True):
-                    st.session_state.show_login_modal = False
-                    st.rerun()
-            
-            if login_submitted:
-                if username and password:
+                if st.button("🚀 立即登录", use_container_width=True, key="login_submit"):
                     if authenticate_user(username, password, st.session_state.users):
                         st.session_state.current_user = username
                         st.session_state.show_login_modal = False
@@ -97,27 +95,19 @@ def simple_login_section():
                         st.rerun()
                     else:
                         st.error("❌ 用户名或密码错误")
-                else:
-                    st.warning("⚠️ 请输入用户名和密码")
-    
-    with register_tab:
-        st.subheader("创建新账户")
-        with st.form("register_form"):
-            new_username = st.text_input("👤 新用户名", placeholder="创建用户名")
-            new_password = st.text_input("🔒 设置密码", type="password", placeholder="设置登录密码")
-            invite_code = st.text_input("🎁 邀请码（可选）", placeholder="管理员邀请码")
-            
-            col1, col2 = st.columns([2, 1])
-            with col1:
-                register_submitted = st.form_submit_button("✨ 创建账户", use_container_width=True)
             with col2:
-                if st.form_submit_button("❌ 取消", use_container_width=True):
+                if st.button("❌ 关闭", use_container_width=True, key="login_cancel"):
                     st.session_state.show_login_modal = False
                     st.rerun()
+        
+        with tab2:
+            new_username = st.text_input("👤 新用户名", key="modal_reg_username", placeholder="创建用户名")
+            new_password = st.text_input("🔒 设置密码", type="password", key="modal_reg_password", placeholder="设置登录密码")
             
-            if register_submitted:
-                if new_username and new_password:
-                    success, message = register_user(new_username, new_password, invite_code, st.session_state.users, st.session_state.invite_codes)
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("✨ 创建账户", use_container_width=True, key="reg_submit"):
+                    success, message = register_user(new_username, new_password, st.session_state.users)
                     if success:
                         course2.save_users(st.session_state.users)
                         st.session_state.current_user = new_username
@@ -126,10 +116,18 @@ def simple_login_section():
                         st.rerun()
                     else:
                         st.error(f"❌ {message}")
-                else:
-                    st.warning("⚠️ 请输入用户名和密码")
+            with col2:
+                if st.button("❌ 关闭", use_container_width=True, key="reg_cancel"):
+                    st.session_state.show_login_modal = False
+                    st.rerun()
+        
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # 添加一个关闭按钮在容器外
+        if st.button("← 返回首页", key="back_to_home"):
+            st.session_state.show_login_modal = False
+            st.rerun()
 
-# 其他函数保持不变...
 def modern_account_binding():
     """现代化账号绑定界面"""
     st.header("🔗 伙伴连接")
@@ -149,16 +147,13 @@ def modern_account_binding():
         """, unsafe_allow_html=True)
         target_username = st.text_input("伙伴用户名:", key="bind_target", placeholder="输入用户名")
         if st.button("🚀 发送邀请", use_container_width=True, key="send_bind_request"):
-            if target_username:
-                success, message = send_binding_request(target_username, st.session_state.current_user, st.session_state.user_relationships)
-                if success:
-                    save_user_relationships(st.session_state.user_relationships)
-                    st.success(f"✅ {message}")
-                    st.rerun()
-                else:
-                    st.error(f"❌ {message}")
+            success, message = send_binding_request(target_username, st.session_state.current_user, st.session_state.user_relationships)
+            if success:
+                save_user_relationships(st.session_state.user_relationships)
+                st.success(f"✅ {message}")
+                st.rerun()
             else:
-                st.warning("⚠️ 请输入伙伴用户名")
+                st.error(f"❌ {message}")
         st.markdown("</div>", unsafe_allow_html=True)
     
     with col2:
@@ -205,7 +200,19 @@ def modern_account_binding():
         binded_users = get_binded_users(st.session_state.current_user, st.session_state.user_relationships)
         if binded_users:
             for binded_user in binded_users:
-                st.success(f"👥 {binded_user}")
+                col_user, col_action = st.columns([3, 1])
+                with col_user:
+                    st.success(f"👥 {binded_user}")
+                with col_action:
+                    # 添加解除绑定按钮
+                    if st.button("🔓 解除", key=f"unbind_{binded_user}", use_container_width=True):
+                        success, message = unbind_user(binded_user, st.session_state.current_user, st.session_state.user_relationships)
+                        if success:
+                            save_user_relationships(st.session_state.user_relationships)
+                            st.success(f"✅ {message}")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {message}")
         else:
             st.info("🔍 暂无连接伙伴")
         st.markdown("</div>", unsafe_allow_html=True)
@@ -219,10 +226,49 @@ def modern_account_binding():
         sent_requests = user_rels.get("sent_requests", [])
         if sent_requests:
             for sent_user in sent_requests:
-                st.info(f"📤 已向 {sent_user} 发送请求")
+                col_sent, col_cancel = st.columns([3, 1])
+                with col_sent:
+                    st.info(f"📤 已向 {sent_user} 发送请求")
+                with col_cancel:
+                    # 添加取消请求按钮
+                    if st.button("❌", key=f"cancel_{sent_user}", use_container_width=True):
+                        # 取消请求实际上是拒绝自己发送的请求
+                        success, message = reject_binding_request(sent_user, st.session_state.current_user, st.session_state.user_relationships)
+                        if success:
+                            save_user_relationships(st.session_state.user_relationships)
+                            st.success(f"✅ {message}")
+                            st.rerun()
+                        else:
+                            st.error(f"❌ {message}")
         else:
             st.info("📤 暂无已发送请求")
         st.markdown("</div>", unsafe_allow_html=True)
+    
+    # 批量解除绑定功能
+    st.markdown("""
+    <div class="modern-card">
+        <h3>🔄 批量管理</h3>
+        <p>快速解除所有绑定关系</p>
+    """, unsafe_allow_html=True)
+    
+    if binded_users:
+        st.warning("⚠️ 此操作将解除与所有伙伴的连接关系")
+        if st.button("🗑️ 解除所有绑定", key="unbind_all", use_container_width=True, type="secondary"):
+            # 解除所有绑定
+            for binded_user in binded_users[:]:  # 使用副本进行迭代
+                success, message = unbind_user(binded_user, st.session_state.current_user, st.session_state.user_relationships)
+                if success:
+                    st.success(f"✅ 已解除与 {binded_user} 的绑定")
+                else:
+                    st.error(f"❌ 解除 {binded_user} 绑定时出错: {message}")
+            
+            save_user_relationships(st.session_state.user_relationships)
+            st.success("🎉 所有绑定关系已解除")
+            st.rerun()
+    else:
+        st.info("暂无绑定关系可管理")
+    
+    st.markdown("</div>", unsafe_allow_html=True)
 
 def modern_home_page():
     """现代化首页"""
@@ -235,8 +281,10 @@ def modern_home_page():
     </div>
     """, unsafe_allow_html=True)
     
-    # 功能特性展示
+    # 功能特性展示 - 使用统一高度的卡片
     st.subheader("✨ 平台特色")
+    
+    # 创建列并添加CSS类确保高度一致
     col1, col2, col3, col4 = st.columns(4)
     
     with col1:
@@ -325,48 +373,43 @@ def main():
     # 显示现代化登录系统
     modern_login_system()
     
-    # 根据登录状态显示内容
-    if not st.session_state.current_user and st.session_state.show_login_modal:
-        # 显示登录/注册界面
-        simple_login_section()
-    else:
-        # 显示主应用内容
-        st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+    # 显示登录模态框（如果需要）
+    modern_login_modal()
+    
+    # 使用Streamlit原生标签页
+    st.markdown('<div class="divider"></div>', unsafe_allow_html=True)
+    
+    tab1, tab2, tab3, tab4 = st.tabs(["🎯 首页", "📅 学习日程", "📚 我的课表", "🤝 伙伴连接"])
+    
+    with tab1:
+        modern_home_page()
+    
+    with tab2:
+        st.header("📅 学习日程管理")
+        st.write("规划你的学习时间，与伙伴同步进度")
+        display_schedule_section(st.session_state.current_user, 
+                               lambda: get_binded_users(st.session_state.current_user, st.session_state.user_relationships))
+    
+    with tab3:
+        st.header("📚 智能课表")
+        st.write("管理课程安排，智能提醒学习时间")
         
-        tab1, tab2, tab3, tab4 = st.tabs(["🎯 首页", "📅 学习日程", "📚 我的课表", "🤝 伙伴连接"])
-        
-        with tab1:
-            modern_home_page()
-        
-        with tab2:
-            st.header("📅 学习日程管理")
-            st.write("规划你的学习时间，与伙伴同步进度")
-            display_schedule_section(st.session_state.current_user, 
-                                   lambda: get_binded_users(st.session_state.current_user, st.session_state.user_relationships))
-        
-        with tab3:
-            st.header("📚 智能课表")
-            st.write("管理课程安排，智能提醒学习时间")
-            
-            if not st.session_state.current_user:
-                st.warning("👋 请先登录以使用课表功能")
-                if st.button("🔐 立即登录", key="login_from_timetable"):
-                    st.session_state.show_login_modal = True
-                    st.rerun()
-            else:
-                try:
-                    import importlib
-                    importlib.reload(course2)
-                    
-                    binded_users = get_binded_users(st.session_state.current_user, st.session_state.user_relationships)
-                    course2.timetable_management_tab_modified(binded_users)
-                    
-                except Exception as e:
-                    st.error(f"❌ 加载课表功能时出现错误: {str(e)}")
-                    st.info("💡 请检查控制台获取完整错误信息")
-        
-        with tab4:
-            modern_account_binding()
+        if not st.session_state.current_user:
+            st.warning("👋 请先登录以使用课表功能")
+        else:
+            try:
+                import importlib
+                importlib.reload(course2)
+                
+                binded_users = get_binded_users(st.session_state.current_user, st.session_state.user_relationships)
+                course2.timetable_management_tab_modified(binded_users)
+                
+            except Exception as e:
+                st.error(f"❌ 加载课表功能时出现错误: {str(e)}")
+                st.info("💡 请检查控制台获取完整错误信息")
+    
+    with tab4:
+        modern_account_binding()
 
 # 运行主程序
 if __name__ == "__main__":

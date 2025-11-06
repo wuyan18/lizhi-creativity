@@ -16,7 +16,6 @@ DATA_DIR = "./timetable_data"
 TIMETABLES_FILE = os.path.join(DATA_DIR, "timetables.pkl")
 METADATA_FILE = os.path.join(DATA_DIR, "metadata.json")
 USERS_FILE = os.path.join(DATA_DIR, "users.json")
-INVITE_CODES_FILE = os.path.join(DATA_DIR, "invite_codes.json")
 
 def ensure_data_dir():
     """确保数据目录存在"""
@@ -43,51 +42,6 @@ def init_timetable_session_state():
     
     # 从本地存储加载数据
     load_timetables_from_storage()
-
-def load_invite_codes():
-    """加载邀请码数据"""
-    try:
-        if os.path.exists(INVITE_CODES_FILE):
-            with open(INVITE_CODES_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        else:
-            # 初始化默认邀请码
-            default_codes = {
-                "ADMIN2024": {
-                    "role": "admin",
-                    "created_by": "system",
-                    "created_at": datetime.datetime.now().isoformat(),
-                    "used": False,
-                    "used_by": None,
-                    "used_at": None
-                },
-                "TEACHER123": {
-                    "role": "admin", 
-                    "created_by": "system",
-                    "created_at": datetime.datetime.now().isoformat(),
-                    "used": False,
-                    "used_by": None,
-                    "used_at": None
-                }
-            }
-            save_invite_codes(default_codes)
-            return default_codes
-    except Exception as e:
-        st.error(f"加载邀请码数据失败: {str(e)}")
-        return {}
-
-def save_invite_codes(invite_codes_data=None):
-    """保存邀请码数据"""
-    try:
-        if invite_codes_data is None:
-            invite_codes_data = st.session_state.invite_codes
-        
-        with open(INVITE_CODES_FILE, 'w', encoding='utf-8') as f:
-            json.dump(invite_codes_data, f, ensure_ascii=False, indent=2)
-        return True
-    except Exception as e:
-        st.error(f"保存邀请码数据失败: {str(e)}")
-        return False
 
 def load_users():
     """加载用户数据"""
@@ -183,7 +137,7 @@ def read_excel_file(file):
     except Exception as e:
         return None, f"读取文件时出错: {str(e)}"
 
-def save_timetable(file, df, timetable_name):
+def save_timetable(file, df, timetable_name, is_locked=False):
     """保存课表到session state和本地存储"""
     # 确保timetable_name是唯一的
     if timetable_name in st.session_state.timetables:
@@ -195,15 +149,19 @@ def save_timetable(file, df, timetable_name):
         # 添加用户标识
         timetable_name = f"{timetable_name}_{st.session_state.current_user}"
     
+    # 生成文件哈希值
+    file_hash = get_file_hash(file)
+    
     st.session_state.timetables[timetable_name] = {
         'file_name': file.name,
         'dataframe': df,
         'upload_time': datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        'uploaded_by': st.session_state.current_user or "匿名用户"
+        'uploaded_by': st.session_state.current_user or "匿名用户",
+        'is_locked': is_locked,  # 上锁状态
+        'file_hash': file_hash   # 存储文件哈希值
     }
     
     # 记录文件哈希值，避免重复上传
-    file_hash = get_file_hash(file)
     st.session_state.uploaded_file_hashes.add(file_hash)
     
     # 保存到本地存储
@@ -215,46 +173,52 @@ def save_timetable(file, df, timetable_name):
     
     return timetable_name
 
-def delete_timetable(timetable_name):
-    """删除指定的课表"""
-    if timetable_name in st.session_state.timetables:
-        # 检查权限：只有上传者或管理员可以删除
-        current_user = st.session_state.current_user
-        uploader = st.session_state.timetables[timetable_name].get('uploaded_by')
-        
-        # 获取当前用户的角色
-        current_user_role = "user"
-        if current_user and current_user in st.session_state.users:
-            current_user_role = st.session_state.users[current_user].get("role", "user")
-        
-        # 检查删除权限：管理员或上传者本人
-        if current_user_role == 'admin' or current_user == uploader:
-            del st.session_state.timetables[timetable_name]
-            # 更新本地存储
-            save_timetables_to_storage()
-            st.session_state.delete_success = True
-            st.session_state.force_refresh = True
-            return True, f"成功删除课表: {timetable_name}"
-        else:
-            return False, "您只能删除自己上传的课表"
-    return False, "课表不存在"
-
-def clear_all_timetables():
-    """清空所有课表（仅管理员）"""
-    current_user = st.session_state.current_user
-    if current_user and current_user in st.session_state.users:
-        current_user_role = st.session_state.users[current_user].get("role", "user")
-        if current_user_role == 'admin':
-            st.session_state.timetables = {}
-            st.session_state.uploaded_file_hashes = set()
-            # 更新本地存储
-            save_timetables_to_storage()
-            st.session_state.delete_success = True
-            st.session_state.force_refresh = True
-            return True, "已清空所有课表"
+def delete_timetable(timetable_name, binded_users):
+    """删除指定的课表 - 简化权限检查逻辑"""
+    if timetable_name not in st.session_state.timetables:
+        return False, "课表不存在"
     
-    return False, "只有管理员可以清空所有课表"
-
+    current_user = st.session_state.current_user
+    timetable_data = st.session_state.timetables[timetable_name]
+    uploader = timetable_data.get('uploaded_by')
+    is_locked = timetable_data.get('is_locked', False)
+    
+    # 调试信息
+    print(f"删除检查: 当前用户={current_user}, 上传者={uploader}, 是否上锁={is_locked}, 绑定用户={binded_users}")
+    
+    # 权限检查：上传者可以删除自己的课表（无论是否上锁）
+    if current_user == uploader:
+        # 上传者可以删除自己的课表
+        pass
+    # 绑定用户可以删除未上锁的课表
+    elif not is_locked and uploader in binded_users:
+        # 绑定用户只能删除未上锁的课表
+        pass
+    else:
+        if is_locked:
+            return False, "无法删除已上锁的课表，请联系上传者"
+        else:
+            return False, "您只能删除自己上传的课表或绑定用户的课表"
+    
+    try:
+        # 从uploaded_file_hashes中移除对应的哈希值，允许重新上传
+        file_hash = timetable_data.get('file_hash')
+        if file_hash and file_hash in st.session_state.uploaded_file_hashes:
+            st.session_state.uploaded_file_hashes.remove(file_hash)
+        
+        # 删除课表
+        del st.session_state.timetables[timetable_name]
+        
+        # 更新本地存储
+        save_timetables_to_storage()
+        
+        # 设置状态标志
+        st.session_state.delete_success = True
+        st.session_state.force_refresh = True
+        
+        return True, f"成功删除课表: {timetable_name}"
+    except Exception as e:
+        return False, f"删除课表时出错: {str(e)}"
 def create_download_button(df, file_name, context=""):
     """创建下载按钮 - 动态生成唯一key"""
     output = BytesIO()
@@ -279,7 +243,7 @@ def create_download_button(df, file_name, context=""):
     )
 
 def display_timetable_main_modified(binded_users):
-    """修改后的主界面显示课程表 - 只显示绑定用户的课表"""
+    """修改后的主界面显示课程表 - 只显示绑定用户的课表，考虑上锁状态"""
     st.header("📅 课程表总览")
     
     # 检查删除成功状态
@@ -295,11 +259,17 @@ def display_timetable_main_modified(binded_users):
     storage_info = get_storage_info()
     st.sidebar.info(f"💾 本地存储: {storage_info}")
     
-    # 过滤课表：只显示当前用户和绑定用户的课表
+    # 过滤课表：只显示当前用户和绑定用户的课表，且绑定用户的课表必须未上锁
     visible_timetables = {}
     for name, data in st.session_state.timetables.items():
         uploader = data.get('uploaded_by')
-        if uploader == st.session_state.current_user or uploader in binded_users:
+        is_locked = data.get('is_locked', False)
+        
+        # 当前用户自己的课表总是可见
+        if uploader == st.session_state.current_user:
+            visible_timetables[name] = data
+        # 绑定用户的课表只有未上锁时才可见
+        elif uploader in binded_users and not is_locked:
             visible_timetables[name] = data
     
     if not visible_timetables:
@@ -342,10 +312,14 @@ def display_timetable_main_modified(binded_users):
             with col1:
                 st.subheader(timetable_name)
                 uploader = timetable_data.get('uploaded_by', '未知')
+                is_locked = timetable_data.get('is_locked', False)
+                lock_status = " 🔒" if is_locked else " 🔓"
+                
                 if uploader == st.session_state.current_user:
-                    uploader_info = " | 上传者: 👤 我"
+                    uploader_info = f" | 上传者: 👤 我{lock_status}"
                 else:
                     uploader_info = f" | 上传者: 👥 {uploader}"
+                
                 st.caption(f"文件: {timetable_data['file_name']} | 上传时间: {timetable_data['upload_time']}{uploader_info}")
             
             with col2:
@@ -383,7 +357,7 @@ def get_storage_info():
         return "未知"
 
 def import_timetable_section():
-    """导入课程表功能部分"""
+    """导入课程表功能部分 - 添加上锁选项"""
     st.header("📤 导入课程表")
     
     # 检查登录状态
@@ -409,6 +383,7 @@ def import_timetable_section():
         - 导入后可以在主页面查看课程表
         - **数据持久化**: 课表数据会自动保存，下次打开页面时自动加载
         - **账号绑定**: 只有绑定的用户才能查看彼此的课表
+        - **上锁功能**: 上锁的课表只有自己可见，绑定用户无法查看和删除
         """)
     
     # 文件上传
@@ -424,12 +399,10 @@ def import_timetable_section():
     if uploaded_files:
         success_count = 0
         for file in uploaded_files:
-            # 检查文件是否已经上传过
+            # 检查文件是否已经上传过（但允许删除后重新上传）
             file_hash = get_file_hash(file)
-            if file_hash in st.session_state.uploaded_file_hashes:
-                st.info(f"ℹ️ 文件 {file.name} 已经上传过了，跳过")
-                continue
-                
+            # 不再检查文件哈希值，允许重新上传同名文件
+            
             if validate_excel_file(file):
                 try:
                     # 检查.xls文件的依赖
@@ -451,11 +424,18 @@ def import_timetable_section():
                         st.warning(f"⚠️ 文件 {file.name} 为空文件或读取失败")
                         continue
                     
+                    # 添加上锁选项
+                    is_locked = st.checkbox(
+                        f"🔒 上锁此课表（仅自己可见，其他人无法删除）", 
+                        key=f"lock_{file.name}_{uuid.uuid4().hex[:8]}",  # 使用唯一key
+                        help="上锁后，绑定用户将无法查看和删除此课表"
+                    )
+                    
                     # 生成课表名称
                     timetable_name = file.name.rsplit('.', 1)[0]
                     
                     # 保存课表
-                    timetable_name = save_timetable(file, df, timetable_name)
+                    timetable_name = save_timetable(file, df, timetable_name, is_locked)
                     success_count += 1
                     
                     st.success(f"✅ 成功导入: {file.name}")
@@ -532,11 +512,11 @@ def download_timetable_section():
     else:
         st.info("导入多个课表后可进行打包下载")
 
-def process_pending_deletions():
-    """处理待删除的课表"""
+def process_pending_deletions(binded_users):
+    """处理待删除的课表 - 修改为需要绑定用户参数"""
     if st.session_state.timetables_to_delete:
         for timetable_name in st.session_state.timetables_to_delete:
-            success, message = delete_timetable(timetable_name)
+            success, message = delete_timetable(timetable_name, binded_users)
             if success:
                 st.success(message)
             else:
@@ -545,12 +525,12 @@ def process_pending_deletions():
         st.rerun()
 
 def timetable_management_tab_modified(binded_users):
-    """修改后的课程表管理标签页 - 只显示绑定用户的课表"""
+    """修改后的课程表管理标签页 - 只显示绑定用户的课表，支持绑定用户删除"""
     # 初始化
     init_timetable_session_state()
     
     # 处理待删除的课表
-    process_pending_deletions()
+    process_pending_deletions(binded_users)
     
     # 检查是否需要强制刷新
     if st.session_state.force_refresh:
@@ -591,10 +571,15 @@ def timetable_management_tab_modified(binded_users):
             else:
                 st.info("🔗 暂无绑定用户")
         
+        # 过滤可见课表：当前用户和绑定用户的课表（绑定用户的课表必须未上锁）
         visible_timetables = {}
         for name, data in st.session_state.timetables.items():
             uploader = data.get('uploaded_by')
-            if uploader == st.session_state.current_user or uploader in binded_users:
+            is_locked = data.get('is_locked', False)
+            
+            if uploader == st.session_state.current_user:
+                visible_timetables[name] = data
+            elif uploader in binded_users and not is_locked:
                 visible_timetables[name] = data
         
         if visible_timetables:
@@ -606,7 +591,11 @@ def timetable_management_tab_modified(binded_users):
             # 添加单个删除功能
             for name, data in timetable_items:
                 with st.expander(f"📋 {name}"):
-                    st.caption(f"文件: {data['file_name']}")
+                    # 显示锁状态
+                    is_locked = data.get('is_locked', False)
+                    lock_status = " 🔒" if is_locked else " 🔓"
+                    
+                    st.caption(f"文件: {data['file_name']}{lock_status}")
                     st.caption(f"上传: {data['upload_time']}")
                     uploader = data.get('uploaded_by', '未知')
                     if uploader == st.session_state.current_user:
@@ -616,37 +605,35 @@ def timetable_management_tab_modified(binded_users):
                     st.caption(f"数据: {len(data['dataframe'])}行 × {len(data['dataframe'].columns)}列{uploader_info}")
                     
                     # 检查删除权限
-                    can_delete = (
-                        st.session_state.current_user and (
-                            st.session_state.current_user == 'admin' or 
-                            st.session_state.current_user == data.get('uploaded_by')
-                        )
-                    )
+                    current_user = st.session_state.current_user
+                    uploader = data.get('uploaded_by')
+                    is_locked = data.get('is_locked', False)
+                    
+                    can_delete = False
+                    if current_user == uploader:
+                        # 上传者可以删除自己的课表（无论是否上锁）
+                        can_delete = True
+                    elif not is_locked and uploader in binded_users:
+                        # 绑定用户只能删除未上锁的课表
+                        can_delete = True
                     
                     if can_delete:
-                        delete_key = f"delete_{name}"
-                        if st.button("🗑️ 删除此课表", key=delete_key, use_container_width=True):
-                            # 直接删除课表
-                            success, message = delete_timetable(name)
-                            if success:
-                                st.success(message)
-                                st.rerun()
-                            else:
-                                st.error(message)
+                        # 使用确认对话框防止误操作
+                        delete_confirmed = st.checkbox(f"确认删除 {name}", key=f"confirm_delete_{name}")
+                        if delete_confirmed:
+                            delete_key = f"delete_{name}"
+                            if st.button("🗑️ 确认删除此课表", key=delete_key, use_container_width=True, type="primary"):
+                                # 直接删除课表
+                                success, message = delete_timetable(name, binded_users)
+                                if success:
+                                    st.success(message)
+                                    st.rerun()
+                                else:
+                                    st.error(message)
                     else:
-                        st.caption("❌ 无删除权限")
-            
-            # 清空所有课表按钮（仅管理员）
-            if st.session_state.current_user and st.session_state.users.get(st.session_state.current_user, {}).get("role") == 'admin':
-                st.markdown("---")
-                clear_button_key = f"clear_all_timetables"
-                if st.button("🗑️ 清空所有课表", use_container_width=True, key=clear_button_key, type="secondary"):
-                    # 清空所有课表
-                    success, message = clear_all_timetables()
-                    if success:
-                        st.success(message)
-                        st.rerun()
-                    else:
-                        st.error(message)
+                        if is_locked:
+                            st.caption("❌ 课表已上锁，无法删除")
+                        else:
+                            st.caption("❌ 无删除权限")
         else:
             st.info("暂无可见课表数据")

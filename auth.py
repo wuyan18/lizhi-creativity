@@ -33,55 +33,20 @@ def authenticate_user(username, password, users):
         return stored_password == password
     return False
 
-def register_user(username, password, invite_code, users, invite_codes):
-    """用户注册"""
+def register_user(username, password, users):
+    """用户注册 - 移除邀请码功能"""
     if not username or not password:
         return False, "请输入用户名和密码"
     
     if username in users:
         return False, "用户名已存在"
     
-    # 检查是否是第一个用户
-    is_first_user = len(users) == 0
-    user_role = "user"
-    
-    # 首个用户自动成为管理员
-    if is_first_user:
-        user_role = "admin"
-        message = "🎉 恭喜！您是该系统的首个用户，已自动成为管理员。"
-    # 有有效邀请码的用户成为管理员
-    elif invite_code and check_invite_code(invite_code, invite_codes):
-        user_role = "admin"
-        message = "🎉 欢迎管理员！邀请码验证成功。"
-        # 标记邀请码为已使用
-        mark_invite_code_used(invite_code, username, invite_codes)
-    else:
-        message = "注册成功！"
-    
     users[username] = {
         "password": password,
-        "role": user_role,
-        "created_at": datetime.now().isoformat(),
-        "invite_used": invite_code if invite_code else None
+        "created_at": datetime.now().isoformat()
     }
     
-    return True, message
-
-def check_invite_code(code, invite_codes):
-    """检查邀请码有效性"""
-    if code in invite_codes:
-        invite_info = invite_codes[code]
-        return not invite_info.get("used", False)
-    return False
-
-def mark_invite_code_used(code, username, invite_codes):
-    """标记邀请码为已使用"""
-    if code in invite_codes:
-        invite_codes[code]["used"] = True
-        invite_codes[code]["used_by"] = username
-        invite_codes[code]["used_at"] = datetime.now().isoformat()
-        return True
-    return False
+    return True, "注册成功！"
 
 def send_binding_request(target_username, current_user, user_relationships):
     """发送绑定请求"""
@@ -145,6 +110,27 @@ def reject_binding_request(from_username, current_user, user_relationships):
     user_relationships[from_username]["sent_requests"].remove(current_user)
     
     return True, f"已拒绝 {from_username} 的绑定请求"
+
+def unbind_user(target_username, current_user, user_relationships):
+    """解除绑定关系"""
+    if not current_user:
+        return False, "请先登录"
+    
+    if target_username == current_user:
+        return False, "不能解除与自己的绑定"
+    
+    # 检查是否已绑定
+    if target_username not in user_relationships.get(current_user, {}).get("binded_users", []):
+        return False, "未绑定该用户"
+    
+    # 从双方的绑定列表中移除
+    if current_user in user_relationships and "binded_users" in user_relationships[current_user]:
+        user_relationships[current_user]["binded_users"].remove(target_username)
+    
+    if target_username in user_relationships and "binded_users" in user_relationships[target_username]:
+        user_relationships[target_username]["binded_users"].remove(current_user)
+    
+    return True, f"已解除与 {target_username} 的绑定关系"
 
 def get_binded_users(current_user, user_relationships):
     """获取已绑定的用户列表"""

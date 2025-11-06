@@ -108,7 +108,7 @@ def get_modern_css():
         box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
     }
     
-    /* 功能卡片 */
+    /* 功能卡片 - 修复比例不统一问题 */
     .feature-card {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
@@ -118,6 +118,25 @@ def get_modern_css():
         position: relative;
         overflow: hidden;
         transition: all 0.3s ease;
+        height: 220px; /* 固定高度确保统一 */
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+    }
+    
+    .feature-card h3 {
+        font-size: 1.25rem;
+        margin-bottom: 1rem;
+        line-height: 1.4;
+        text-align: center;
+    }
+    
+    .feature-card p {
+        font-size: 0.95rem;
+        line-height: 1.5;
+        opacity: 0.9;
+        text-align: center;
+        margin: 0;
     }
     
     .feature-card::before {
@@ -139,6 +158,11 @@ def get_modern_css():
     .feature-card:hover {
         transform: translateY(-8px);
         box-shadow: 0 25px 50px rgba(102, 126, 234, 0.3);
+    }
+    
+    /* 确保所有功能卡片列的高度一致 */
+    .feature-column > div {
+        height: 100%;
     }
     
     /* 现代化按钮 */
@@ -243,6 +267,11 @@ def get_modern_css():
             padding: 0 16px;
             font-size: 0.9rem;
         }
+        
+        .feature-card {
+            height: 180px; /* 移动端调整高度 */
+            padding: 1.5rem;
+        }
     }
     
     /* 自定义滚动条 */
@@ -270,21 +299,7 @@ def get_modern_css():
         background: linear-gradient(90deg, transparent, #6366f1, transparent);
         margin: 2rem 0;
         border: none;
-    }/* 移除或注释掉可能冲突的模态框样式 */
-/*
-.modal-overlay, .modal-content {
-    display: none !important;
-}
-*/
-
-/* 确保表单样式正常 */
-.stForm {
-    border: 1px solid #e2e8f0;
-    border-radius: 15px;
-    padding: 2rem;
-    background: white;
-    margin: 1rem 0;
-}
+    }
     
     /* 动画效果 */
     @keyframes fadeInUp {

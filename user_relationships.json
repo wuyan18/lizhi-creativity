@@ -1,0 +1,12 @@
+{
+  "ly": {
+    "sent_requests": [],
+    "received_requests": [],
+    "binded_users": []
+  },
+  "lz": {
+    "sent_requests": [],
+    "received_requests": [],
+    "binded_users": []
+  }
+}
