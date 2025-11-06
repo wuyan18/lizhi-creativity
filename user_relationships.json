@@ -1,12 +1,16 @@
 {
   "ly": {
-    "sent_requests": [],
+    "sent_requests": [
+      "lizhi"
+    ],
     "received_requests": [],
     "binded_users": []
   },
-  "lz": {
+  "lizhi": {
     "sent_requests": [],
-    "received_requests": [],
+    "received_requests": [
+      "ly"
+    ],
     "binded_users": []
   }
 }
